@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Deutsche Familien</title>
+<meta name="description" content="Ein Relief Deutschlands aus den Höhendaten des BKG: alle 16 Länder mit Wappen, Farben und Wahrzeichen.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='11' fill='%23000'/%3E%3Crect y='11' width='32' height='10' fill='%23DD0000'/%3E%3Crect y='21' width='32' height='11' fill='%23FFCE00'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;1,400;1,600&display=swap">
+<link rel="preload" href="data/geo.json" as="fetch" crossorigin>
+<style>
+/* Layout: das Relief liegt fix hinter der Seite, eine Lesespalte (Desktop links, Telefon unten).
+   Die Markenfarben (--brand …) wechseln mit dem gewählten Land, siehe data-land auf <html>. */
+:root{
+  color-scheme:light;
+  --paper:#F6F7F9; --ink:#161A22; --ink-2:#4D5565; --mist:#E6E9EE; --rule:rgba(22,26,34,.14);
+  --card:rgba(255,255,255,.9); --halo:rgba(255,255,255,.92); --shadow:rgba(22,26,34,.18);
+  --lake-text:#155E95; --lake-label:#FFFFFF; --lake-halo:rgba(0,40,80,.55);
+  --brand:#DD0000; --brand-text:#B30000; --on-brand:#FFFFFF; --flag:linear-gradient(90deg,#000 0 33.33%,#DD0000 33.33% 66.67%,#FFCE00 66.67% 100%);
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,-apple-system,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  /* Relief */
+  --m-land:#EEF0F2; --m-lit:#FFFFFF; --m-shade:#6E7584; --m-forest:#E1E7E1; --m-out:#F2F3F5;
+  --m-water:#3A8DCB; --m-water-deep:#0C4C85; --m-contour:#556074; --m-hi:#DD0000;
+  --m-side:#DD0000; --m-side-2:#7A0000; --m-line:#DD0000; --m-nation:#DD0000; --m-cant:#3A4252;
+  --m-river:#2F86C9; --m-shore:#1F6EAD;
+  --m-dark:0;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --paper:#0A0D13; --ink:#E8ECF2; --ink-2:#A6AFBE; --mist:#151A24; --rule:rgba(232,236,242,.16);
+    --card:rgba(14,18,26,.88); --halo:rgba(10,13,19,.9); --shadow:rgba(0,0,0,.5);
+    --lake-text:#8CC6F0; --lake-label:#AFDBFF; --lake-halo:rgba(2,12,26,.8);
+    --brand-text:#FF7B70;
+    --m-land:#1E2430; --m-lit:#404B5E; --m-shade:#05070B; --m-forest:#C3CAD4; --m-out:#10141C;
+    --m-water:#114F8E; --m-water-deep:#062851; --m-contour:#8FA3C2; --m-hi:#FF5A4C;
+    --m-side-2:#2A0805; --m-line:#FF5A4C; --m-nation:#FF5A4C; --m-cant:#9AA6BA; --m-river:#3E9DE4; --m-shore:#3487C8;
+    --m-dark:1;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#0A0D13; --ink:#E8ECF2; --ink-2:#A6AFBE; --mist:#151A24; --rule:rgba(232,236,242,.16);
+  --card:rgba(14,18,26,.88); --halo:rgba(10,13,19,.9); --shadow:rgba(0,0,0,.5);
+  --lake-text:#8CC6F0; --lake-label:#AFDBFF; --lake-halo:rgba(2,12,26,.8);
+  --brand-text:#FF7B70;
+  --m-land:#1E2430; --m-lit:#404B5E; --m-shade:#05070B; --m-forest:#C3CAD4; --m-out:#10141C;
+  --m-water:#114F8E; --m-water-deep:#062851; --m-contour:#8FA3C2; --m-hi:#FF5A4C;
+  --m-side-2:#2A0805; --m-line:#FF5A4C; --m-nation:#FF5A4C; --m-cant:#9AA6BA; --m-river:#3E9DE4; --m-shore:#3487C8;
+  --m-dark:1;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:env(safe-area-inset-top,0px)}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden;transition:background-color .6s}
+img{max-width:100%}
+[hidden]{display:none!important}
+#scene{position:fixed;left:0;top:0;width:100%;height:100vh;height:100lvh;display:block;z-index:0;outline:none}
+#labels{position:fixed;left:0;top:0;width:100%;height:100vh;height:100lvh;z-index:1;pointer-events:none;overflow:hidden}
+main{position:relative;z-index:2;pointer-events:none}
+main a, main button, .card{pointer-events:auto}
+.wrap{padding-inline:max(16px, 5vw)}
+
+/* ---------- Fortschrittsband, Wortmarke, Landeswahl */
+.progress{position:fixed;left:0;right:0;top:0;height:calc(3px + env(safe-area-inset-top,0px));z-index:6;pointer-events:none}
+.progress span{position:absolute;left:0;bottom:0;height:3px;width:100%;background:var(--brand);transform-origin:0 50%;transform:scaleX(0);transition:background-color .6s}
+.mark{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:max(16px,5vw);z-index:5;display:flex;align-items:center;gap:9px;
+  font-family:var(--f-display);font-variation-settings:"wdth" 118;font-weight:700;font-size:13px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink);opacity:0;transform:translateY(-6px);transition:opacity .4s, transform .4s;pointer-events:none;
+  padding:6px 12px 6px 8px;margin-left:-8px;background:var(--card);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid var(--rule)}
+.mark.on{opacity:1;transform:none}
+.mark i{font-style:normal;color:var(--brand-text);transition:color .6s}
+.mark img{width:16px;height:19px;object-fit:contain}
+.pick{position:fixed;top:calc(9px + env(safe-area-inset-top,0px));right:max(16px,2.4vw);z-index:6;pointer-events:auto;
+  display:flex;align-items:center;gap:8px;padding:6px 12px 6px 8px;border:1px solid var(--rule);background:var(--card);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);color:var(--ink);text-decoration:none;
+  font-family:var(--f-mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase}
+.pick img{width:18px;height:22px;object-fit:contain}
+.pick:hover{border-color:var(--brand)}
+.pick:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+/* ---------- Kapitelindex (Desktop) */
+.nav{position:fixed;right:max(16px,2.4vw);top:50%;transform:translateY(-50%);z-index:5;display:none;flex-direction:column;gap:2px;pointer-events:auto}
+.nav a{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:5px 0;color:var(--ink-2);text-decoration:none;
+  font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.nav a span{opacity:0;transform:translateX(6px);transition:opacity .25s, transform .25s;text-shadow:0 0 6px var(--halo)}
+.nav a::after{content:"";width:14px;height:2px;background:currentColor;opacity:.45;transition:width .25s, opacity .25s, background .25s}
+.nav:hover a span, .nav a.on span, .nav a:focus-visible span{opacity:1;transform:none}
+.nav a.on{color:var(--brand-text)}
+.nav a.on::after{width:28px;opacity:1;background:var(--brand)}
+.nav a:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
+@media (min-width:1100px){ .nav{display:flex} }
+
+/* ---------- HUD: UTM 32N und Nordpfeil */
+.hud{position:fixed;right:max(16px,2.4vw);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:5;display:flex;align-items:center;gap:12px;
+  font-family:var(--f-mono);font-size:11.5px;line-height:1.45;color:var(--ink-2);font-variant-numeric:tabular-nums;pointer-events:none;
+  text-shadow:0 0 6px var(--halo), 0 0 2px var(--halo)}
+.hud svg{width:34px;height:34px;flex:none}
+.hud #hudA{font-weight:500;color:var(--ink)}
+.hud .st{display:block}
+@media (max-width:640px){
+  .hud{left:16px;right:auto;top:calc(12px + env(safe-area-inset-top,0px));bottom:auto;font-size:10.5px} .hud svg{width:26px;height:26px}
+  .mark{display:none} .pick span{display:none} .pick{padding:6px}
+}
+
+/* ---------- Einstieg */
+.hero{position:relative;min-height:100svh;display:grid;grid-template-rows:1fr auto minmax(18vh,auto)}
+.band{grid-row:2;position:relative;background:var(--brand);color:var(--on-brand);padding-block:clamp(22px,4vh,40px);transition:background-color .6s,color .6s}
+.band::after{content:"";position:absolute;left:0;right:0;bottom:-8px;height:8px;background:var(--flag)}
+.band .wrap{display:grid;gap:10px}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.92;display:flex;align-items:center;gap:10px}
+.eyebrow img{width:18px;height:22px;object-fit:contain}
+.hero h1{margin:0;font-family:var(--f-display);font-variation-settings:"wdth" 125;font-weight:700;
+  font-size:clamp(2.5rem, 8.6vw, 7.4rem);line-height:.92;letter-spacing:-.015em;text-wrap:balance}
+.under{grid-row:3;padding-block:30px 40px}
+.under .wrap{display:flex;flex-wrap:wrap;gap:18px 48px;align-items:flex-start;justify-content:space-between}
+.lead{margin:0;max-width:36rem;font-size:clamp(1.05rem,1.6vw,1.25rem);line-height:1.5;color:var(--ink);text-shadow:0 0 12px var(--halo)}
+.cue{display:flex;align-items:center;gap:12px;font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);padding-top:6px}
+.cue::before{content:"";width:1px;height:36px;background:linear-gradient(var(--brand),transparent);animation:cue 2.2s ease-in-out infinite}
+@keyframes cue{0%{transform:scaleY(.2);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}100%{transform:scaleY(.2);transform-origin:bottom}}
+@media (prefers-reduced-motion: reduce){ .cue::before{animation:none} }
+.status{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;color:var(--ink-2)}
+
+/* ---------- Kapitel */
+.chapter{min-height:150vh;display:flex;align-items:center}
+.chapter .wrap{width:100%}
+.card{width:min(26rem,100%);background:var(--card);
+  -webkit-backdrop-filter:blur(10px) saturate(1.15);backdrop-filter:blur(10px) saturate(1.15);
+  border-top:4px solid var(--brand);padding:22px 26px 22px;box-shadow:0 18px 40px -26px var(--shadow);transition:border-color .6s}
+.kicker{margin:0 0 10px;font-family:var(--f-mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--brand-text);line-height:1.5;transition:color .6s}
+.card h2{margin:0 0 12px;font-family:var(--f-display);font-variation-settings:"wdth" 104;font-weight:680;font-size:clamp(1.55rem,2.6vw,2.15rem);
+  line-height:1.06;letter-spacing:-.01em;text-wrap:balance}
+.card p{margin:0 0 14px;color:var(--ink)}
+.card p.hint{color:var(--ink-2);font-size:15px}
+@media (hover:none){ .hint-hover{display:none} }
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(7.2rem,1fr));gap:12px 18px;margin:16px 0 0;padding-top:14px;border-top:1px solid var(--rule)}
+.facts div{min-width:0}
+.facts dt{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.facts dd{margin:2px 0 0;font-family:var(--f-mono);font-size:14px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.rows{list-style:none;margin:16px 0 0;padding:12px 0 0;border-top:1px solid var(--rule);display:grid;gap:4px;
+  font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.rows li{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.rows li span:first-child{font-family:var(--f-body);font-size:15px;display:flex;align-items:center;gap:8px}
+.rows li img{width:14px;height:17px;object-fit:contain}
+.rows li span:last-child{color:var(--ink-2);text-align:right}
+
+/* ---------- Landeswahl */
+.finale{min-height:130vh;display:flex;align-items:center}
+.finale .card{width:min(31rem,100%)}
+.tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;margin:14px 0 6px}
+.tiles button{appearance:none;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;padding:7px 2px 5px;
+  border:1px solid var(--rule);background:transparent;color:var(--ink);cursor:pointer;
+  font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;transition:background .2s,border-color .2s,color .2s}
+.tiles button img{width:22px;height:27px;object-fit:contain;pointer-events:none}
+.tiles button:hover{border-color:var(--brand)}
+.tiles button[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.tiles button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.tiles .all{grid-column:span 1}
+.tiles .all svg{width:22px;height:27px}
+.detail{margin-top:12px;padding-top:14px;border-top:1px solid var(--rule)}
+.dhead{display:flex;gap:14px;align-items:center}
+.dhead img{width:52px;height:63px;object-fit:contain;flex:none}
+.dhead h3{margin:0;font-family:var(--f-display);font-variation-settings:"wdth" 106;font-weight:700;font-size:1.45rem;line-height:1.08}
+.dhead p{margin:2px 0 0;font-size:14.5px;color:var(--ink-2)}
+.flagbar{height:6px;margin:12px 0 0;background:var(--flag)}
+.marks{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:6px}
+.marks button{appearance:none;width:100%;display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:baseline;text-align:left;
+  padding:8px 10px;border:1px solid var(--rule);background:transparent;color:var(--ink);cursor:pointer;font-family:var(--f-body);font-size:15px;
+  transition:background .2s,border-color .2s}
+.marks button::before{content:"";grid-row:span 2;width:8px;height:8px;border-radius:50%;background:var(--brand);margin-top:6px}
+.marks button b{font-weight:600}
+.marks button small{grid-column:2;font-size:13.5px;color:var(--ink-2);line-height:1.4}
+.marks button:hover{border-color:var(--brand)}
+.marks button[aria-pressed="true"]{border-color:var(--brand);background:color-mix(in srgb, var(--brand) 12%, transparent)}
+.marks button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.sel{margin:10px 0 0;font-size:15px;color:var(--ink-2)}
+.sel b{color:var(--ink);font-weight:600}
+
+/* ---------- Fuss */
+footer{position:relative;z-index:2;background:var(--paper);border-top:1px solid var(--rule)}
+footer .wrap{padding-block:34px 44px;display:grid;gap:10px;max-width:72rem}
+footer p{margin:0;font-size:14.5px;color:var(--ink-2);max-width:66ch}
+footer a{color:inherit;text-underline-offset:2px}
+footer a:hover{color:var(--brand-text)}
+footer .sig{font-family:var(--f-display);font-variation-settings:"wdth" 118;font-weight:700;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink)}
+
+/* ---------- Beschriftungen im Relief */
+.lbl{position:absolute;left:0;top:0;white-space:nowrap;opacity:0;will-change:transform,opacity;
+  text-shadow:0 0 3px var(--halo),0 0 8px var(--halo),0 0 14px var(--halo)}
+.lbl.land{font-family:var(--f-display);font-variation-settings:"wdth" 112;font-weight:650;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
+.lbl.land small{display:block;font-family:var(--f-body);font-weight:400;font-size:11px;letter-spacing:.04em;text-transform:none;color:var(--ink-2);text-align:center}
+.lbl.lake{font-family:var(--f-body);font-style:italic;font-weight:600;font-size:13px;letter-spacing:.04em;color:var(--lake-text)}
+.lbl.lake.sea{font-size:16px;letter-spacing:.22em;text-transform:uppercase;color:var(--lake-label);text-shadow:0 0 6px var(--lake-halo),0 1px 2px var(--lake-halo)}
+.lbl.peak{font-family:var(--f-body);font-size:13px;color:var(--ink);display:flex;align-items:center;gap:6px}
+.lbl.peak::before{content:"";width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid var(--ink)}
+.lbl.peak em{font-style:normal;font-family:var(--f-mono);font-size:11px;color:var(--ink-2)}
+.lbl.poi{font-family:var(--f-body);font-size:13px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:6px}
+.lbl.poi::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 2px var(--halo);flex:none}
+.lbl.poi.on{font-size:14.5px}
+.lbl.poi.on::before{width:11px;height:11px}
+
+/* ---------- Tooltip */
+.tip{position:fixed;left:0;top:0;z-index:7;pointer-events:none;opacity:0;transition:opacity .15s;
+  background:var(--card);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-top:3px solid var(--brand);
+  padding:9px 12px 10px;min-width:11rem;box-shadow:0 10px 26px -16px var(--shadow)}
+.tip.on{opacity:1}
+.tip b{display:flex;align-items:center;gap:8px;font-family:var(--f-display);font-variation-settings:"wdth" 108;font-weight:680;font-size:15px;letter-spacing:.01em}
+.tip b img{width:14px;height:17px;object-fit:contain}
+.tip span{display:block;font-family:var(--f-mono);font-size:11.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+
+/* ---------- kleine Bildschirme: Karten unten, Relief darüber */
+@media (max-width:760px){
+  body{font-size:16px}
+  .chapter,.finale{align-items:flex-end;min-height:140svh}
+  .chapter .wrap,.finale .wrap{padding-bottom:9svh}
+  .card{padding:18px 18px 16px}
+  .card p{font-size:15.5px}
+  .finale .card{max-height:74svh;overflow:auto;overscroll-behavior:contain}
+  .hero{grid-template-rows:1fr auto auto}
+  .under{padding-block:24px 28px}
+}
+.noscene .cue{display:none}
+</style>
+</head>
+<body>
+
+<canvas id="scene" aria-hidden="true" tabindex="-1"></canvas>
+<div id="labels" aria-hidden="true"></div>
+<div class="progress" aria-hidden="true"><span id="prog"></span></div>
+<div class="mark" id="mark" aria-hidden="true"><img id="markW" src="data/wappen/DE.svg" alt=""><span><span id="markT">Deutsche</span> <i>Familien</i></span></div>
+<a class="pick" href="#laender" id="pick"><img id="pickW" src="data/wappen/DE.svg" alt=""><span id="pickT">Land wählen</span></a>
+
+<nav class="nav" id="nav" aria-label="Kapitel">
+  <a href="#deutschland" data-for="deutschland"><span>Deutschland</span></a>
+  <a href="#norden" data-for="norden"><span>Norden</span></a>
+  <a href="#nordosten" data-for="nordosten"><span>Nordosten</span></a>
+  <a href="#mitte" data-for="mitte"><span>Mitte</span></a>
+  <a href="#westen" data-for="westen"><span>Westen</span></a>
+  <a href="#rhein" data-for="rhein"><span>Rhein und Main</span></a>
+  <a href="#sueden" data-for="sueden"><span>Süden</span></a>
+  <a href="#laender" data-for="laender"><span>Länder</span></a>
+</nav>
+
+<div class="hud" aria-hidden="true">
+  <svg viewBox="0 0 34 34" id="north"><circle cx="17" cy="17" r="15.5" fill="none" stroke="currentColor" stroke-opacity=".35"/><path d="M17 5 L21.5 18 L17 15.6 L12.5 18 Z" fill="var(--brand)"/><path d="M17 29 L12.5 18 L17 20.4 L21.5 18 Z" fill="currentColor" fill-opacity=".35"/><text x="17" y="4.2" text-anchor="middle" font-size="5.5" font-family="IBM Plex Mono, monospace" fill="currentColor">N</text></svg>
+  <div><span class="st" id="hudA">Höhenmodell wird geladen …</span><span class="st" id="hudB">DGM200 · ETRS89 / UTM 32N</span></div>
+</div>
+
+<div class="tip" id="tip" role="status" aria-live="polite"><b id="tipT"></b><span id="tipA"></span><span id="tipB"></span></div>
+
+<main>
+  <section class="hero" data-cam="hero" id="top">
+    <div aria-hidden="true"></div>
+    <div class="band">
+      <div class="wrap">
+        <div class="eyebrow"><img id="heroW" src="data/wappen/DE.svg" alt=""><span id="heroE">Deutschland · 51° 10′ N · 10° 27′ O</span></div>
+        <h1 id="heroT">Deutsche Familien</h1>
+      </div>
+    </div>
+    <div class="under">
+      <div class="wrap">
+        <p class="lead">Ein Relief Deutschlands aus den Höhendaten des Bundesamts für Kartographie und Geodäsie, mit allen 16 Ländern und ihren Wahrzeichen. Wählen Sie Ihr Land: Die Seite übernimmt seine Farben.</p>
+        <div>
+          <div class="cue">Scrollen</div>
+          <div class="status" id="status"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="deutschland" id="deutschland">
+    <div class="wrap">
+      <article class="card">
+        <p class="kicker">Deutschland</p>
+        <h2 id="chH">16 Länder</h2>
+        <p id="chP">Von der tiefsten natürlichen Stelle in der Wilstermarsch bei Neuendorf-Sachsenbande, 3,54&nbsp;m unter Normalhöhennull, bis zur Zugspitze auf 2962&nbsp;m. Die Linien zeigen die Staatsgrenze und die Grenzen der Länder nach VG250, Stand 31.&nbsp;Dezember 2024.</p>
+        <p class="hint hint-hover">Fahren Sie mit der Maus über das Relief, um Name und Kennzahlen eines Landes anzuzeigen.</p>
+        <dl class="facts" id="chFacts"></dl>
+      </article>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="norden" id="norden">
+    <div class="wrap">
+      <article class="card">
+        <p class="kicker">Norden · Schleswig-Holstein · Hamburg · Bremen · Niedersachsen</p>
+        <h2>Zwischen Nordsee und Ostsee</h2>
+        <p>Schleswig-Holstein grenzt als einziges Land an beide Meere. Hamburg und Bremen sind Stadtstaaten; das Land Bremen besteht aus den Städten Bremen und Bremerhaven, die durch niedersächsisches Gebiet voneinander getrennt sind. Niedersachsen reicht von den Ostfriesischen Inseln bis in den Harz. Vor der Nordseeküste liegt das Wattenmeer, seit 2009 UNESCO-Welterbe.</p>
+        <ul class="rows" data-rows="norden"></ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="nordosten" id="nordosten">
+    <div class="wrap">
+      <article class="card">
+        <p class="kicker">Nordosten · Mecklenburg-Vorpommern · Berlin · Brandenburg</p>
+        <h2>Seenland rund um die Hauptstadt</h2>
+        <p>Brandenburg umschließt Berlin vollständig. Die Müritz in Mecklenburg-Vorpommern ist mit rund 113&nbsp;km² der größte See, der ganz in Deutschland liegt. Berlin ist seit 1990 Hauptstadt; der Bundestag tagt seit 1999 im Reichstagsgebäude.</p>
+        <ul class="rows" data-rows="nordosten"></ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="mitte" id="mitte">
+    <div class="wrap">
+      <article class="card">
+        <p class="kicker">Mitte · Sachsen-Anhalt · Thüringen · Sachsen</p>
+        <h2>Vom Harz bis ins Erzgebirge</h2>
+        <p>Der Brocken ist mit 1141&nbsp;m der höchste Berg Norddeutschlands. Der Rennsteig folgt auf rund 170&nbsp;km dem Kamm von Thüringer Wald, Thüringer Schiefergebirge und Frankenwald. Im Süden Sachsens bildet das Erzgebirge die Grenze zu Tschechien; die Montanregion Erzgebirge/Krušnohoří ist seit 2019 UNESCO-Welterbe.</p>
+        <ul class="rows" data-rows="mitte"></ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="westen" id="westen">
+    <div class="wrap">
+      <article class="card">
+        <p class="kicker">Westen · Nordrhein-Westfalen</p>
+        <h2>Ein Land mit 18 Millionen Einwohnern</h2>
+        <p>Kein Land zählt mehr Einwohner. Zwischen Rhein, Ruhr und Lippe liegt das Ruhrgebiet; im Süden reicht das Land in die Eifel und ins Sauerland. Die Sohle des Tagebaus Hambach westlich von Köln reicht bis 299&nbsp;m unter Normalhöhennull, tiefer als jede andere künstliche Senke in Deutschland.</p>
+        <ul class="rows" data-rows="westen"></ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="rhein" id="rhein">
+    <div class="wrap">
+      <article class="card">
+        <p class="kicker">Rhein und Main · Hessen · Rheinland-Pfalz · Saarland</p>
+        <h2>Main, Mosel und Mittelrhein</h2>
+        <p>In Frankfurt am Main sitzen die Europäische Zentralbank und die Deutsche Bundesbank. Zwischen Bingen und dem Deutschen Eck in Koblenz, wo die Mosel mündet, durchbricht der Rhein im Oberen Mittelrheintal das Rheinische Schiefergebirge. Das Saarland gehört seit dem 1.&nbsp;Januar 1957 zur Bundesrepublik.</p>
+        <ul class="rows" data-rows="rhein"></ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="sueden" id="sueden">
+    <div class="wrap">
+      <article class="card">
+        <p class="kicker">Süden · Baden-Württemberg · Bayern</p>
+        <h2>Vom Schwarzwald zu den Alpen</h2>
+        <p>Bayern ist das flächengrößte Land. An der Grenze zu Österreich erreicht die Zugspitze 2962&nbsp;m. In Donaueschingen vereinigen sich Brigach und Breg zur Donau, die ostwärts durch Baden-Württemberg und Bayern fließt. Am Bodensee grenzen Deutschland, Österreich und die Schweiz aneinander; im Obersee ist keine Grenze vertraglich festgelegt.</p>
+        <ul class="rows" data-rows="sueden"></ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="finale" data-cam="laender" id="laender">
+    <div class="wrap">
+      <article class="card">
+        <p class="kicker">Alle Länder</p>
+        <h2>Wählen Sie Ihr Land</h2>
+        <p>Die Seite übernimmt Wappen und Farben des Landes, die Kamera fliegt hin.<span class="hint-hover"> Mit gedrückter Maustaste drehen Sie die Ansicht.</span></p>
+        <div class="tiles" id="tiles" role="group" aria-label="Länder der Bundesrepublik Deutschland"></div>
+        <div class="detail" id="detail" aria-live="polite"></div>
+      </article>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="sig" id="sig">Deutsche Familien</div>
+    <p>Deutschland: Höhenmodell <a href="https://gdz.bkg.bund.de/index.php/default/digitales-gelandemodell-gitterweite-200-m-dgm200.html">DGM200</a> und Landschaftsmodell <a href="https://gdz.bkg.bund.de/index.php/default/digitales-landschaftsmodell-1-250-000-ebenen-dlm250-ebenen.html">DLM250</a> (Gewässer, Wald): © GeoBasis-DE / <a href="https://www.bkg.bund.de">BKG</a> (2026) <a href="https://www.govdata.de/dl-de/by-2-0">dl-de/by-2-0</a> (Daten verändert). Grenzen, Katasterflächen, Einwohner, Kreise und Gemeinden aus <a href="https://gdz.bkg.bund.de/index.php/default/verwaltungsgebiete-1-250-000-mit-einwohnerzahlen-stand-31-12-vg250-ew-31-12.html">VG250-EW</a>, Stand 31.12.2024: © <a href="https://www.bkg.bund.de">BKG</a> (2026) <a href="https://www.govdata.de/dl-de/by-2-0">dl-de/by-2-0</a> (Daten verändert), <a href="https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_vg_nuts.pdf">Datenquellen</a>. Namen und Gipfelhöhen aus <a href="https://gdz.bkg.bund.de/index.php/default/geographische-namen-1-250-000-gn250.html">GN250</a>: © <a href="https://www.bkg.bund.de">BKG</a> (2026) <a href="https://www.govdata.de/dl-de/by-2-0">dl-de/by-2-0</a> (Daten verändert), <a href="https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_gn250.pdf">Datenquellen</a>.</p>
+    <p>Außerhalb Deutschlands: produced using Copernicus WorldDEM™-90 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved. Die für das Copernicus-Programm zuständigen Organisationen haften nicht für die Nutzung des Copernicus WorldDEM™-90. Seen der Nachbarländer: Natural Earth.</p>
+    <p>Höhenmodell auf 600&nbsp;m gemittelt, im Relief 4-fach überhöht. Koordinaten in ETRS89 / UTM Zone 32N, Höhen in Metern über Normalhöhennull (NHN). Die höchsten Punkte der Länder stammen aus amtlichen Höhenangaben (GN250, Landesvermessung), nicht aus dem gemittelten Raster.</p>
+    <p>Wappen: Wikimedia Commons. Landesfarben an Wappen und Landesflaggen angelehnt; keine offizielle Seite des Bundes oder der Länder.</p>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.1/three.min.js"></script>
+<script src="laender.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
